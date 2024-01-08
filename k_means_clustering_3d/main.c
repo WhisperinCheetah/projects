@@ -4,8 +4,8 @@
 #include <time.h>
 #include "raylib.h"
 
-#define AMOUNT_OF_POINTS 5000
-#define AMOUNT_OF_CLUSTERS 20
+#define AMOUNT_OF_POINTS 172800
+#define AMOUNT_OF_CLUSTERS 3
 #define WINDOW_X 1600
 #define WINDOW_Y 900
 #define RANGE 800
@@ -13,6 +13,7 @@
 #define MOUSE_SPEED CUBE_SIZE
 #define UNIFORM true
 #define CENTER_CENTROIDS false
+#define IMAGE true
 
 typedef struct _Cluster {
     int amount;
@@ -38,12 +39,29 @@ void free_clusters(Cluster* clusters, int k);
 
 
 int main() {
+
+
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(WINDOW_X, WINDOW_Y, "K-means clustering in 3D"); // GetRandomValue seed is created with initwindow
     SetRandomSeed(time(NULL));
 
     Vector3* points;
     if (UNIFORM) points = generate_uniform_points(AMOUNT_OF_POINTS, RANGE);
-    else points = generate_points(AMOUNT_OF_CLUSTERS, AMOUNT_OF_POINTS, WINDOW_X, WINDOW_Y);
+    else if (!IMAGE) points = generate_points(AMOUNT_OF_CLUSTERS, AMOUNT_OF_POINTS, WINDOW_X, WINDOW_Y);
+
+#ifdef IMAGE
+    Image image = LoadImage("./images/alex.png");
+    ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    printf("Image: w=%d, h=%d, format=%d\n", image.width, image.height, image.format);
+    points = (Vector3*)malloc(sizeof(Vector3) * image.width * image.height);
+    for (int y = 0; y < image.height; y++) {
+        for (int x = 0; x < image.width; x++) {
+            Color color = GetPixelColor(&((Color*)image.data)[y*image.width + x], PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+            Vector3 v_color = { (float)color.r, (float)color.g, (float)color.b };
+            points[y*image.width + x] = v_color; 
+        }
+    }
+#endif // IMAGE
 
     Vector3* centroids;
     if (CENTER_CENTROIDS) centroids = init_centroids_center(AMOUNT_OF_CLUSTERS);
@@ -55,7 +73,6 @@ int main() {
     float camera_mag = CUBE_SIZE*10;
     float camera_mag_velocity = 0.0f;
 
-    DisableCursor();
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
@@ -133,6 +150,7 @@ int main() {
         EndDrawing();
     }
 
+    UnloadImage(image);
     free(centroids);
     free(points);
     free_clusters(clusters, AMOUNT_OF_CLUSTERS);
