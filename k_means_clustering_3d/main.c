@@ -2,37 +2,48 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <assert.h>
 #include "raylib.h"
 
 #define AMOUNT_OF_POINTS 5000
-#define AMOUNT_OF_CLUSTERS 5
+#define AMOUNT_OF_CLUSTERS 2
 #define WINDOW_X 1600
 #define WINDOW_Y 900
 #define RANGE 800
-#define CUBE_SIZE 1.0f
+#define CUBE_SIZE 2.0f
 #define MOUSE_SPEED CUBE_SIZE
 #define UNIFORM true
-#define CENTER_CENTROIDS false
 #define IMAGE true
+
+typedef struct _Coordinate {
+    int x;
+    int y;
+} Coordinate;
+
+typedef struct _Point {
+    Vector3 coord_3d;
+    Coordinate* image_coords;
+    int amount;
+} Point;
 
 typedef struct _Cluster {
     int amount;
     int size;
-    Vector3* cluster_points;
+    Point** cluster_points;
     Vector3 centroid;
 } Cluster;
 
 double distance_between_points(Vector3, Vector3);
-Cluster* find_nearest_cluster(Vector3, Cluster*, int);
-Vector3 calculate_new_centroid(Cluster);
+Cluster* find_nearest_cluster(Point*, Cluster*, int);
+Vector3 calculate_new_centroid(Cluster*);
 Vector3* generate_points(int, int, int, int);
 Vector3* generate_uniform_points(int, int);
-Vector3* init_centroids(Vector3*, int, int);
-Vector3* init_centroids_center(int);
+Vector3* init_centroids(Point*, int, int);
 Cluster init_empty_cluster(Vector3);
 Cluster* init_empty_clusters(Vector3*, int);
-void add_point_to_cluster(Vector3, Cluster*);
-void draw_points(Vector3*, int);
+void add_point_to_cluster(Point*, Cluster*);
+void add_coord_to_point(Point*, Coordinate);
+void draw_points(Point*, int);
 void draw_centroids(Vector3*, int);
 void draw_clusters(Cluster*, int);
 void print_points(Vector3*, int);
@@ -41,51 +52,57 @@ Color vector3_to_color(Vector3 v);
 
 
 int main() {
-    SetRandomSeed(time(NULL));
-
     int point_count = AMOUNT_OF_POINTS;
 
-    Vector3* points;
-    if (UNIFORM) points = generate_uniform_points(point_count, RANGE);
-    else if (!IMAGE) points = generate_points(AMOUNT_OF_CLUSTERS, point_count, WINDOW_X, WINDOW_Y);
+    SetRandomSeed(time(NULL));
+
+    Point* points;
+    if (!IMAGE) { // TODO
+        if (UNIFORM) points = generate_uniform_points(point_count, RANGE);
+        else points = generate_points(AMOUNT_OF_CLUSTERS, point_count, WINDOW_X, WINDOW_Y);
+    }
 
 #ifdef IMAGE
-    Image image = LoadImage("./images/test_5.png");
+    Image image = LoadImage("./images/alex.png");
     ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    int pixel_count = image.width * image.height;
-    printf("Image: w=%d, h=%d, format=%d\n", image.width, image.height, image.format);
-    points = (Vector3*)malloc(sizeof(Vector3) * image.width * image.height);
-    point_count = 0;
-    for (int x = 0; x < pixel_count; x++) {
-        Color color = GetPixelColor(&((Color*)image.data)[x], PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-        Vector3 v_color = { (float)color.r, (float)color.g, (float)color.b };
 
-        bool exists = false;
-        for (int i = 0; i < point_count; i++) {
-            if (points[i].x == v_color.x && points[i].y == v_color.y && points[i].z == v_color.z) {
-                exists = true;
-                break;
+    points = (Point*)malloc(sizeof(Point) * image.width * image.height);
+    point_count = 0;
+    for (int y = 0; y < image.height; y++) {
+        for (int x = 0; x < image.width; x++) {
+            Color color = GetPixelColor(&((Color*)image.data)[x + (y * image.width)], PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+            Vector3 v_color = { (float)color.r, (float)color.g, (float)color.b };
+
+            bool exists = false;
+            for (int i = 0; i < point_count; i++) {
+                if (points[i].coord_3d.x == v_color.x && points[i].coord_3d.y == v_color.y && points[i].coord_3d.z == v_color.z) {
+                    exists = true;
+                    add_coord_to_point(&points[i], (Coordinate){ x, y });
+                    break;
+                }
+            }
+
+            if(!exists) {
+                Coordinate* coord_2d = (Coordinate*)malloc(sizeof(Coordinate));
+                coord_2d[0] = (Coordinate){ x, y };
+                points[point_count] = (Point){
+                    .coord_3d = v_color,
+                    .image_coords = coord_2d,
+                    .amount = 1,
+                }; 
+                point_count++;
             }
         }
-
-        if(!exists) {
-            points[point_count] = v_color; 
-            point_count++;
-        }    
     }
+
+    points = (Point*)realloc(points, sizeof(Point) * point_count);
 
     printf("Unique colors=%d\n", point_count);
-    printf("Total pixel count=%d\n", pixel_count);
-
-    for (int i = 0; i < 10; i++) {
-        Color color = { (unsigned char)floor(points[i].x), (unsigned char)floor(points[i].y), (unsigned char)floor(points[i].z), 255 };
-        printf("color: r=%d, g=%d, b=%d, a=%d\n", color.r, color.g, color.b, color.a);
-    }
+    printf("Total pixel count=%d\n", image.width * image.height);
 #endif // IMAGE
 
     Vector3* centroids;
-    if (CENTER_CENTROIDS) centroids = init_centroids_center(AMOUNT_OF_CLUSTERS);
-    else centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
+    centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
     Cluster* clusters = NULL;
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -115,12 +132,12 @@ int main() {
         if (IsKeyPressed(KEY_N)) {
             clusters = init_empty_clusters(centroids, AMOUNT_OF_CLUSTERS);
             for (int i = 0; i < point_count; i++) {
-                Cluster* nearest_cluster = find_nearest_cluster(points[i], clusters, AMOUNT_OF_CLUSTERS);
-                add_point_to_cluster(points[i], nearest_cluster);
+                Cluster* nearest_cluster = find_nearest_cluster(&points[i], clusters, AMOUNT_OF_CLUSTERS);
+                add_point_to_cluster(&points[i], nearest_cluster);
             }
 
             for (int i = 0; i < AMOUNT_OF_CLUSTERS; i++) {
-                centroids[i] = calculate_new_centroid(clusters[i]);
+                centroids[i] = calculate_new_centroid(&clusters[i]);
             }
         }
 
@@ -128,8 +145,7 @@ int main() {
             free(centroids);
             if (clusters != NULL) free_clusters(clusters, AMOUNT_OF_CLUSTERS);
 
-            if (CENTER_CENTROIDS) centroids = init_centroids_center(AMOUNT_OF_CLUSTERS);
-            else centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
+            centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
 
             clusters = NULL;
         }
@@ -146,10 +162,44 @@ int main() {
             if (UNIFORM) points = generate_uniform_points(point_count, RANGE);
             else points = generate_points(AMOUNT_OF_CLUSTERS, point_count, WINDOW_X, WINDOW_Y);
 
-            if (CENTER_CENTROIDS) centroids = init_centroids_center(AMOUNT_OF_CLUSTERS);
-            else centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
+            centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
 
             clusters = NULL;
+        }
+        if (IMAGE && IsKeyPressed(KEY_O)) {
+            Color* output_data = (Color*)malloc(sizeof(Color) * image.width * image.height);
+            int test_count = 0;
+            for (int k = 0; k < AMOUNT_OF_CLUSTERS; k++) {
+                Color cluster_color = vector3_to_color(clusters[k].centroid);
+                printf("Cluster %d: color: r=%d, g=%d, b=%d, a=%d\n", k, cluster_color.r, cluster_color.g, cluster_color.b, cluster_color.a);
+
+                for (int p = 0; p < clusters[k].amount; p++) {
+                    Point* current_p = clusters[k].cluster_points[p];
+
+                    for (int c_ind = 0; c_ind < current_p->amount; c_ind++) {
+                        test_count++;
+                        Coordinate coord = current_p->image_coords[c_ind];
+                        output_data[coord.x + (coord.y * image.width) ] = cluster_color;
+                    }
+                }
+            }
+
+            Image result = {
+                .data = output_data,
+                .height = image.height,
+                .width = image.width,
+                .mipmaps = image.mipmaps,
+                .format = image.format,
+            };
+
+            printf("Image created\n info: h=%d, w=%d, f=%d\n", result.height, result.width, result.format);
+            printf("Original image: h=%d, w=%d, f=%d\n", image.height, image.width, image.format);
+            printf("Actual pixel count=%d\n", test_count);
+            printf("Expected pixel count=%d\n", image.width * image.height);
+            if (!ExportImage(result, "result.png")) {
+                printf("Failed to export image\n");
+                return 0;
+            }
         }
 
         Camera3D camera = { 
@@ -182,6 +232,13 @@ int main() {
     return 0;
 }
 
+void add_coord_to_point(Point* point, Coordinate coord) {
+    Coordinate* coord_arr = (Coordinate*)realloc(point->image_coords, sizeof(Coordinate) * (point->amount + 1));
+    coord_arr[point->amount] = coord;
+    point->image_coords = coord_arr;
+    point->amount++;
+}
+
 void free_clusters(Cluster* clusters, int k) {
     for (int i = 0; i < k; i++) {
         free(clusters[i].cluster_points);
@@ -189,73 +246,64 @@ void free_clusters(Cluster* clusters, int k) {
     free(clusters);
 }
 
-Vector3 calculate_new_centroid(Cluster cluster) {
+Vector3 calculate_new_centroid(Cluster* cluster) {
     float new_x = 0;
     float new_y = 0;
     float new_z = 0;
-    for (int i = 0; i < cluster.amount; i++) {
-        new_x += cluster.cluster_points[i].x;
-        new_y += cluster.cluster_points[i].y;
-        new_z += cluster.cluster_points[i].z;
+    for (int i = 0; i < cluster->amount; i++) {
+        new_x += cluster->cluster_points[i]->coord_3d.x;
+        new_y += cluster->cluster_points[i]->coord_3d.y;
+        new_z += cluster->cluster_points[i]->coord_3d.z;
     }
 
-    new_x /= cluster.amount;
-    new_y /= cluster.amount;
-    new_z /= cluster.amount;
+    new_x /= cluster->amount;
+    new_y /= cluster->amount;
+    new_z /= cluster->amount;
 
     Vector3 new_centroid = {new_x, new_y, new_z};
     return new_centroid;
 }
 
-void add_point_to_cluster(Vector3 point, Cluster* cluster) {
+void add_point_to_cluster(Point* point, Cluster* cluster) {
     if (cluster->size <= cluster->amount) {
         cluster->size *= 2;
-        cluster->cluster_points = (Vector3*)realloc(
+        cluster->cluster_points = (Point**)realloc(
             cluster->cluster_points, 
-            cluster->size
+            cluster->size * sizeof(Point*)
         );
     }
     cluster->cluster_points[cluster->amount] = point;
     cluster->amount++;
 }
 
-Cluster* find_nearest_cluster(Vector3 point, Cluster* clusters, int k) {
-    double min_distance = distance_between_points(point, clusters[0].centroid);
+Cluster* find_nearest_cluster(Point* point, Cluster* clusters, int k) {
+    double min_distance = distance_between_points(point->coord_3d, clusters[0].centroid);
     int min_dist_index = 0;
 
     for (int i = 1; i < k; i++) {
-        double distance = distance_between_points(point, clusters[i].centroid);
+        double distance = distance_between_points(point->coord_3d, clusters[i].centroid);
         if (distance < min_distance) {
             min_distance = distance;
             min_dist_index = i;
         }
     }
 
-    return &(clusters[min_dist_index]);
+    return &clusters[min_dist_index];
 }
 
 double distance_between_points(Vector3 a, Vector3 b) {
     return (double)(b.x - a.x)*(b.x - a.x) + (b.y - a.y)*(b.y - a.y) + (b.z - a.z)*(b.z - a.z);
 }
 
-Vector3* init_centroids(Vector3* points, int amount, int k) {
+Vector3* init_centroids(Point* points, int amount, int k) {
     if (amount < k) return NULL;
 
     int* chosen = LoadRandomSequence(k, 0, amount-1);
     Vector3* centoids = (Vector3*)malloc(sizeof(Vector3) * k);
     for (int i = 0; i < k; i++) {
-        centoids[i] = points[chosen[i]];
+        centoids[i] = points[chosen[i]].coord_3d;
     }
 
-    return centoids;
-}
-
-Vector3* init_centroids_center(int k) { // TODO
-    Vector3* centoids = (Vector3*)malloc(sizeof(Vector3) * k);
-    for (int i = 0; i < k; i++) {
-        Vector3 point = { (WINDOW_X / 2) + i * 5, (WINDOW_Y / 2) + i * 5};
-        centoids[i] = point;
-    }
     return centoids;
 }
 
@@ -268,11 +316,11 @@ Cluster* init_empty_clusters(Vector3* centroids, int k) {
     return clusters;
 }
 
-Cluster init_empty_cluster(Vector3 centroid) { // TODO make dynamic
-    Vector3* points_array = (Vector3*)malloc(sizeof(Vector3) * AMOUNT_OF_POINTS);
+Cluster init_empty_cluster(Vector3 centroid) {
+    Point** points_array = (Point**)malloc(sizeof(Point*) * 100);
     Cluster cluster = {
         .amount = 0,
-        .size = AMOUNT_OF_POINTS,
+        .size = 100,
         .cluster_points = points_array,
         .centroid = centroid,
     };
@@ -280,11 +328,11 @@ Cluster init_empty_cluster(Vector3 centroid) { // TODO make dynamic
     return cluster;
 }
 
-void draw_points(Vector3* points, int amount) { 
+void draw_points(Point* points, int amount) { 
     for (int i = 0; i < amount; i++)
     {
-        Color color = { (unsigned char)floor(points[i].x), (unsigned char)floor(points[i].y), (unsigned char)floor(points[i].z), 255 };
-        DrawCube(points[i], CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, color);
+        Color color = { (unsigned char)floor(points[i].coord_3d.x), (unsigned char)floor(points[i].coord_3d.y), (unsigned char)floor(points[i].coord_3d.z), 255 };
+        DrawCube(points[i].coord_3d, CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, color);
     }
 }
 
@@ -325,9 +373,9 @@ void draw_clusters(Cluster* clusters, int k) {
     for (int i = 0; i < k; i++) {
         Color centroid_color = vector3_to_color(clusters[i].centroid);
         for (int j = 0; j < clusters[i].amount; j++) {
-            DrawCube(clusters[i].cluster_points[j], CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, centroid_color);
+            DrawCube(clusters[i].cluster_points[j]->coord_3d, CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, centroid_color);
         }
-    }
+    }   
 }
 
 Color vector3_to_color(Vector3 v) {
