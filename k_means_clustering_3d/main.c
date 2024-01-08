@@ -6,14 +6,11 @@
 #include "raylib.h"
 
 #define AMOUNT_OF_POINTS 5000
-#define AMOUNT_OF_CLUSTERS 2
+#define AMOUNT_OF_CLUSTERS 6
 #define WINDOW_X 1600
 #define WINDOW_Y 900
 #define RANGE 800
 #define CUBE_SIZE 2.0f
-#define MOUSE_SPEED CUBE_SIZE
-#define UNIFORM true
-#define IMAGE true
 
 typedef struct _Coordinate {
     int x;
@@ -36,8 +33,6 @@ typedef struct _Cluster {
 double distance_between_points(Vector3, Vector3);
 Cluster* find_nearest_cluster(Point*, Cluster*, int);
 Vector3 calculate_new_centroid(Cluster*);
-Vector3* generate_points(int, int, int, int);
-Vector3* generate_uniform_points(int, int);
 Vector3* init_centroids(Point*, int, int);
 Cluster init_empty_cluster(Vector3);
 Cluster* init_empty_clusters(Vector3*, int);
@@ -46,28 +41,39 @@ void add_coord_to_point(Point*, Coordinate);
 void draw_points(Point*, int);
 void draw_centroids(Vector3*, int);
 void draw_clusters(Cluster*, int);
-void print_points(Vector3*, int);
 void free_clusters(Cluster* clusters, int k);
 Color vector3_to_color(Vector3 v);
 
 
-int main() {
-    int point_count = AMOUNT_OF_POINTS;
+int main(int argc, char** argv) {
+    printf("Program: %s\n", argv[0]);
+    printf("Arg count: %d\n", argc);
 
-    SetRandomSeed(time(NULL));
-
-    Point* points;
-    if (!IMAGE) { // TODO
-        if (UNIFORM) points = generate_uniform_points(point_count, RANGE);
-        else points = generate_points(AMOUNT_OF_CLUSTERS, point_count, WINDOW_X, WINDOW_Y);
+    if (argc < 3) {
+        printf("Not enough arguments given\n");
+        printf("Required: kmeans <cluster count> <image path> <?output name>\n");
+        return 0;
     }
 
-#ifdef IMAGE
-    Image image = LoadImage("./images/alex.png");
+    int cluster_count = atoi(argv[1]);
+    if (cluster_count <= 0) {
+        printf("Cluster count must be greater than 0\n");
+        return 0;
+    }
+    char* image_path = argv[2];
+
+    char* output_name = NULL;
+    if (argc > 3) {
+        output_name = argv[3];
+    } else {
+        output_name = "result.png";
+    }
+
+    Image image = LoadImage(image_path);
     ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
 
-    points = (Point*)malloc(sizeof(Point) * image.width * image.height);
-    point_count = 0;
+    int point_count = 0;
+    Point* points = (Point*)malloc(sizeof(Point) * image.width * image.height);
     for (int y = 0; y < image.height; y++) {
         for (int x = 0; x < image.width; x++) {
             Color color = GetPixelColor(&((Color*)image.data)[x + (y * image.width)], PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
@@ -99,14 +105,14 @@ int main() {
 
     printf("Unique colors=%d\n", point_count);
     printf("Total pixel count=%d\n", image.width * image.height);
-#endif // IMAGE
 
-    Vector3* centroids;
-    centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
-    Cluster* clusters = NULL;
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    SetRandomSeed(time(NULL));
     InitWindow(WINDOW_X, WINDOW_Y, "K-means clustering in 3D"); // GetRandomValue seed is created with initwindow
+
+    Vector3* centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
+    Cluster* clusters = NULL;
 
     float camera_theta = 0.0f;
     float camera_phi = 0.0f;
@@ -141,32 +147,14 @@ int main() {
             }
         }
 
-        if (IsKeyPressed(KEY_H)) {
-            free(centroids);
-            if (clusters != NULL) free_clusters(clusters, AMOUNT_OF_CLUSTERS);
-
-            centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
-
-            clusters = NULL;
-        }
-
         if (IsKeyPressed(KEY_R)) {
-            point_count = AMOUNT_OF_POINTS;
-
             free(centroids);
-            free(points);
             if (clusters != NULL) free_clusters(clusters, AMOUNT_OF_CLUSTERS);
-
-            SetRandomSeed(time(NULL));
-
-            if (UNIFORM) points = generate_uniform_points(point_count, RANGE);
-            else points = generate_points(AMOUNT_OF_CLUSTERS, point_count, WINDOW_X, WINDOW_Y);
-
-            centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
-
             clusters = NULL;
+            centroids = init_centroids(points, point_count, AMOUNT_OF_CLUSTERS);
         }
-        if (IMAGE && IsKeyPressed(KEY_O)) {
+
+        if (IsKeyPressed(KEY_O)) {
             Color* output_data = (Color*)malloc(sizeof(Color) * image.width * image.height);
             int test_count = 0;
             for (int k = 0; k < AMOUNT_OF_CLUSTERS; k++) {
@@ -196,9 +184,9 @@ int main() {
             printf("Original image: h=%d, w=%d, f=%d\n", image.height, image.width, image.format);
             printf("Actual pixel count=%d\n", test_count);
             printf("Expected pixel count=%d\n", image.width * image.height);
-            if (!ExportImage(result, "result.png")) {
+            if (!ExportImage(result, output_name)) {
                 printf("Failed to export image\n");
-                return 0;
+                return 1;
             }
         }
 
@@ -296,7 +284,7 @@ double distance_between_points(Vector3 a, Vector3 b) {
 }
 
 Vector3* init_centroids(Point* points, int amount, int k) {
-    if (amount < k) return NULL;
+    if (amount < k) exit(1);
 
     int* chosen = LoadRandomSequence(k, 0, amount-1);
     Vector3* centoids = (Vector3*)malloc(sizeof(Vector3) * k);
@@ -344,32 +332,6 @@ void draw_centroids(Vector3* centroids, int k) {
 }
 
 void draw_clusters(Cluster* clusters, int k) { 
-    Color colors[] = {
-         LIGHTGRAY
-        ,DARKBLUE
-        ,YELLOW
-        ,PINK
-        ,RED
-        ,MAROON
-        ,GRAY
-        ,DARKGRAY
-        ,GOLD
-        ,ORANGE
-        ,GREEN
-        ,LIME
-        ,DARKGREEN
-        ,SKYBLUE
-        ,BLUE
-        ,PURPLE
-        ,VIOLET
-        ,DARKPURPLE
-        ,BEIGE
-        ,BROWN
-        ,DARKBROWN
-        ,WHITE
-        ,MAGENTA
-        ,RAYWHITE
-    };
     for (int i = 0; i < k; i++) {
         Color centroid_color = vector3_to_color(clusters[i].centroid);
         for (int j = 0; j < clusters[i].amount; j++) {
@@ -381,52 +343,4 @@ void draw_clusters(Cluster* clusters, int k) {
 Color vector3_to_color(Vector3 v) {
     Color color = { (unsigned char)floor(v.x), (unsigned char)floor(v.y), (unsigned char)floor(v.z), 255 };
     return color;
-}
-
-Vector3* generate_points(int k, int amount, int rangeX, int rangeY) { // TODO
-    Vector3* array = (Vector3*)malloc(sizeof(Vector3) * amount);
-
-    int index = 0;
-    for (int j = 0; j < k; j++) {
-        int c_x = GetRandomValue(100, rangeX - 100);
-        int c_y = GetRandomValue(100, rangeY - 100);
-
-        double radius = 150.0;
-
-        for (int i = 0; i < amount/k; i++) {
-            double dist = sqrt(((double)GetRandomValue(0, 1000)) / 1000.0);
-            double r = radius * dist * dist;
-            double theta = (((double)GetRandomValue(0, 1000)) / 1000.0) * 2 * (double)PI;
-
-            int x = c_x + (int)floor(r * cos(theta));
-            int y = c_y + (int)floor(r * sin(theta));
-            Vector3 point = {x, y};
-            array[index] = point;
-            index++;
-        }
-    }
-
-    return array;
-}
-
-Vector3* generate_uniform_points(int amount, int range) {
-    Vector3* array = (Vector3*)malloc(sizeof(Vector3) * amount);
-
-    for (int i = 0; i < amount; i++) {
-        Vector3 point = {0};
-
-        point.x = (float)GetRandomValue(-range, range);
-        point.y = (float)GetRandomValue(-range, range);
-        point.z = (float)GetRandomValue(-range, range);
-
-        array[i] = point;
-    }
-
-    return array;
-}
-
-void print_points(Vector3* points, int amount) {
-    for (int i = 0; i < amount; i++) {
-        printf("Point: x=%f, y=%f, z=%f\n", points[i].x, points[i].y, points[i].z);
-    }
 }

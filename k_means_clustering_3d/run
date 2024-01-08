@@ -1,4 +1,4 @@
 #!/bin/bash
 
 gcc -Wall -Wextra -ggdb -I./raylib/ -o kmeans main.c -L./raylib/ -lraylib -lm
-./kmeans
+./kmeans $1 $2 $3
