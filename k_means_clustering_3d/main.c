@@ -9,6 +9,8 @@
 #define WINDOW_X 1600
 #define WINDOW_Y 900
 #define RANGE 800
+#define CUBE_SIZE 10.0f
+#define MOUSE_SPEED CUBE_SIZE
 #define UNIFORM true
 #define CENTER_CENTROIDS false
 
@@ -48,18 +50,29 @@ int main() {
     else centroids = init_centroids(points, AMOUNT_OF_POINTS, AMOUNT_OF_CLUSTERS);
     Cluster* clusters = NULL;
 
-    Camera3D camera = { 0 };
-    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f }; // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
-    camera.fovy = 60.0f;                                // Camera field-of-view Y
-    camera.projection = CAMERA_PERSPECTIVE;             // Camera projection type
+    float camera_theta = 0.0f;
+    float camera_phi = 0.0f;
+    float camera_mag = CUBE_SIZE*10;
+    float camera_mag_velocity = 0.0f;
 
     DisableCursor();
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
-        UpdateCamera(&camera, CAMERA_FIRST_PERSON);
+        camera_mag += camera_mag_velocity;
+        camera_mag_velocity += GetMouseWheelMove() * CUBE_SIZE * 2;
+        camera_mag_velocity *= 0.9;
+
+        if (camera_mag < 1.0f) camera_mag = 1.0f;
+
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            float dt = GetFrameTime();
+            Vector2 delta = GetMouseDelta();
+            camera_phi += delta.x*0.01;
+            camera_theta += delta.y*0.01;
+        }
+
+
         if (IsKeyPressed(KEY_N)) {
             clusters = init_empty_clusters(AMOUNT_OF_CLUSTERS);
             for (int i = 0; i < AMOUNT_OF_POINTS; i++) {
@@ -97,6 +110,19 @@ int main() {
 
             clusters = NULL;
         }
+
+        Camera3D camera = { 
+            .position = {
+                .x = camera_mag * sin(camera_theta) * cos(camera_phi),
+                .y = camera_mag * sin(camera_theta) * sin(camera_theta),
+                .z = camera_mag * cos(camera_theta),
+            },
+            .target = { 0.0f, 0.0f, 0.0f },
+            .up = { 0.0f, 1.0f, 0.0f },
+            .fovy = 90.0f,
+            .projection = CAMERA_PERSPECTIVE,
+        };
+
         BeginDrawing();
             ClearBackground(BLACK);
             BeginMode3D(camera);
@@ -207,14 +233,14 @@ Cluster init_empty_cluster() {
 void draw_points(Vector3* points, int amount) { 
     for (int i = 0; i < amount; i++)
     {
-        DrawCube(points[i], 3.0, 3.0, 3.0, MAGENTA);
+        DrawCube(points[i], CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, MAGENTA);
     }
 }
 
 void draw_centroids(Vector3* centroids, int k) { 
     for (int i = 0; i < k; i++)
     {
-        DrawCube(centroids[i], 10.0, 10.0, 10.0, WHITE);
+        DrawCube(centroids[i], CUBE_SIZE*2, CUBE_SIZE*2, CUBE_SIZE*2, WHITE);
     }
 }
 
@@ -247,7 +273,7 @@ void draw_clusters(Cluster* clusters, int k) {
     };
     for (int i = 0; i < k; i++) {
         for (int j = 0; j < clusters[i].amount; j++) {
-            DrawCube(clusters[i].cluster_points[j], 3.0, 3.0, 3.0, colors[i%22]); // colors[i%23]
+            DrawCube(clusters[i].cluster_points[j], CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, colors[i%22]);
         }
     }
 }
@@ -284,9 +310,9 @@ Vector3* generate_uniform_points(int amount, int range) {
     for (int i = 0; i < amount; i++) {
         Vector3 point = {0};
 
-        point.x = (float)GetRandomValue(0, range);
-        point.y = (float)GetRandomValue(0, range);
-        point.z = (float)GetRandomValue(0, range);
+        point.x = (float)GetRandomValue(-range, range);
+        point.y = (float)GetRandomValue(-range, range);
+        point.z = (float)GetRandomValue(-range, range);
 
         array[i] = point;
     }
