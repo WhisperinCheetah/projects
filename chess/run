@@ -1,0 +1,4 @@
+#!/bin/bash
+
+gcc -Wall -Wextra -ggdb -I./raylib/ -o chess chess.c -L./raylib/ -lraylib -lm
+./chess
