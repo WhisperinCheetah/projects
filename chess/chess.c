@@ -5,18 +5,25 @@
 void draw_board(int tilesize);
 int compute_tilesize();
 void draw_pieces();
+Board* init_board();
 
-typedef enum _PieceColor {
-    PIECE_BLACK=0,
-    PIECE_WHITE,
-} PieceColor;
+typedef struct _BitBoard {
+    __uint64_t board;
+} BitBoard;
 
-typedef struct _Piece {
-    int x;
-    int y;
-    PieceColor color;
-    Image image;
-} Piece;
+typedef struct _ColoredBoard {
+    BitBoard kings;
+    BitBoard queens;
+    BitBoard rooks;
+    BitBoard bishops;
+    BitBoard knights;
+    BitBoard pawns;
+} ColoredBoard;
+
+typedef struct _Board {
+    ColoredBoard white;
+    ColoredBoard black;
+} Board;
 
 int main() {
     const char* image_paths[] = {
@@ -54,6 +61,38 @@ int main() {
     CloseWindow();
 
     return 0;
+}
+
+Board* init_board() {
+    Board* board = (Board*)malloc(sizeof(Board));
+
+    __uint64_t bKing = 0b0000100000000000000000000000000000000000000000000000000000000000;
+    __uint64_t wKing = 0b0000000000000000000000000000000000000000000000000000000000001000;
+
+    ColoredBoard white = {
+        .kings = wKing,
+        .queens = 0,
+        .rooks = 0,
+        .bishops = 0,
+        .knights = 0,
+        .pawns = 0,
+    };
+
+    ColoredBoard black = {
+        .kings = bKing,
+        .queens = 0,
+        .rooks = 0,
+        .bishops = 0,
+        .knights = 0,
+        .pawns = 0,
+    };
+
+    *board = (Board){
+        .white = white,
+        .black = black,
+    };
+
+    return board;
 }
 
 void draw_pieces() {
