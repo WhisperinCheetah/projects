@@ -43,6 +43,7 @@ __uint64_t get_knight_moves(int x, int y);
 __uint64_t get_black_pawn_moves(int x, int y);
 __uint64_t get_white_pawn_moves(int x, int y);
 __uint64_t bit_at_pos(int x, int y);
+bool is_possible_move(Board* board, PIECE piece, int x1, int y1, int x2, int y2);
 
 
 int main() {
@@ -86,7 +87,9 @@ int main() {
             int dropped_x = GetMouseX() / (GetScreenWidth() / 8);
             int dropped_y = GetMouseY() / (GetScreenHeight() / 8);
 
-            move_piece(board, clicking, clicking_x, clicking_y, dropped_x, dropped_y);
+            if (is_possible_move(board, clicking, clicking_x, clicking_y, dropped_x, dropped_y)) {
+                move_piece(board, clicking, clicking_x, clicking_y, dropped_x, dropped_y);
+            }
             clicking = -1;
         }
 
@@ -156,10 +159,11 @@ int piece_at_tile(Board* board, int x, int y) {
 }
 
 void move_piece(Board* board, PIECE piece, int x1, int y1, int x2, int y2) {
-    __uint64_t bit = 0b1000000000000000000000000000000000000000000000000000000000000000;
-    board->bitboards[piece] = board->bitboards[piece] & (~(bit >> (x1 + y1*8)));
-    bit = 0b1000000000000000000000000000000000000000000000000000000000000000;
-    board->bitboards[piece] = board->bitboards[piece] | (bit >> (x2 + y2*8));
+    board->bitboards[piece] = board->bitboards[piece] & (~(bit_at_pos(x1, y1)));
+    for (int i = 0; i < 12; i++) {
+        board->bitboards[i] = board->bitboards[i] & (~(bit_at_pos(x2, y2)));
+    }
+    board->bitboards[piece] = board->bitboards[piece] | (bit_at_pos(x2, y2));
 }
 
 void draw_possible_moves(__uint64_t possible_moves, int tilesize) {
@@ -171,6 +175,11 @@ void draw_possible_moves(__uint64_t possible_moves, int tilesize) {
         }
         possible_moves = possible_moves >> 1;
     }
+}
+
+bool is_possible_move(Board* board, PIECE piece, int x1, int y1, int x2, int y2) {
+    __uint64_t possible_moves = get_possible_moves(board, piece, x1, y1);
+    return (possible_moves & bit_at_pos(x2, y2)) != 0; 
 }
 
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y) {
