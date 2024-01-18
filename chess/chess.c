@@ -30,8 +30,13 @@ void draw_pieces(Board* board, Texture2D* textures, size_t tilesize);
 void draw_piece(__uint64_t bitboard, Texture2D* texture, size_t tilesize);
 int piece_at_tile(Board* board, int x, int y);
 void move_piece(Board*, PIECE, int x1, int y1, int x2, int y2);
+void draw_possible_moves(__uint64_t possible_moves, int tilesize);
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y);
 __uint64_t get_board_bitboard(Board* board);
+__uint64_t get_king_moves(int x, int y);
+__uint64_t get_rook_moves(int x, int y);
+__uint64_t get_bishop_moves(int x, int y);
+__uint64_t bit_at_pos(int x, int y);
 
 
 int main() {
@@ -83,7 +88,7 @@ int main() {
             ClearBackground(BLACK);
             draw_board(tilesize);
             draw_pieces(board, textures, tilesize);
-            if (clicking != -1) draw_possible_moves();
+            if (clicking != -1) draw_possible_moves(get_possible_moves(board, clicking, clicking_x, clicking_y), tilesize);
         EndDrawing();
     }
 
@@ -151,10 +156,22 @@ void move_piece(Board* board, PIECE piece, int x1, int y1, int x2, int y2) {
     board->bitboards[piece] = board->bitboards[piece] | (bit >> (x2 + y2*8));
 }
 
+void draw_possible_moves(__uint64_t possible_moves, int tilesize) {
+    for (int i = 63; i >= 0; i--) { // go back to front on bitboard
+        if ((possible_moves & 1) > 0) {
+            size_t x = i % 8;
+            size_t y = i / 8;
+            DrawCircle(x*tilesize + (tilesize/2), y*tilesize + (tilesize/2), (float)tilesize/4, (Color){0, 0, 0, 86});
+        }
+        possible_moves = possible_moves >> 1;
+    }
+}
+
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y) {
     __uint64_t moves = 0;
     if (piece==WKING || piece==BKING) moves = get_king_moves(x, y);
     if (piece==WROOK || piece==BROOK) moves = get_rook_moves(x, y);
+    if (piece==WBISHOP || piece==BBISHOP) moves = get_bishop_moves(x, y);
 
     return moves & ~(get_board_bitboard(board));
 }
@@ -168,6 +185,8 @@ __uint64_t get_king_moves(int x, int y) {
             }
         }
     }
+
+    return res;
 }
 
 __uint64_t get_rook_moves(int x, int y) {
@@ -183,7 +202,20 @@ __uint64_t get_rook_moves(int x, int y) {
     return res;
 }
 
+__uint64_t get_bishop_moves(int x, int y) {
+    __uint64_t res = 0;
+    for (int i = 1; i < 7; i++) {
+        res |= bit_at_pos(x-i, y-i);
+        res |= bit_at_pos(x+i, y-i);
+        res |= bit_at_pos(x-i, y+i);
+        res |= bit_at_pos(x+i, y+i);
+    }
+    return res;
+}
+
 __uint64_t bit_at_pos(int x, int y) {
+    if (x < 0 || y < 0 || x > 7 || y > 7) return 0;
+    
     __uint64_t bit = 0b1000000000000000000000000000000000000000000000000000000000000000;
     return bit >> (x + y*8);
 }
