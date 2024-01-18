@@ -34,8 +34,10 @@ void draw_possible_moves(__uint64_t possible_moves, int tilesize);
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y);
 __uint64_t get_board_bitboard(Board* board);
 __uint64_t get_king_moves(int x, int y);
+__uint64_t get_queen_moves(int x, int y);
 __uint64_t get_rook_moves(int x, int y);
 __uint64_t get_bishop_moves(int x, int y);
+__uint64_t get_knight_moves(int x, int y);
 __uint64_t bit_at_pos(int x, int y);
 
 
@@ -170,10 +172,16 @@ void draw_possible_moves(__uint64_t possible_moves, int tilesize) {
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y) {
     __uint64_t moves = 0;
     if (piece==WKING || piece==BKING) moves = get_king_moves(x, y);
-    if (piece==WROOK || piece==BROOK) moves = get_rook_moves(x, y);
-    if (piece==WBISHOP || piece==BBISHOP) moves = get_bishop_moves(x, y);
+    else if (piece==WQUEEN || piece==BQUEEN) moves = get_queen_moves(x, y);
+    else if (piece==WROOK || piece==BROOK) moves = get_rook_moves(x, y);
+    else if (piece==WBISHOP || piece==BBISHOP) moves = get_bishop_moves(x, y);
+    else if (piece==WKNIGHT || piece==BKNIGHT) moves = get_knight_moves(x, y);
 
     return moves & ~(get_board_bitboard(board));
+}
+
+__uint64_t get_queen_moves(int x, int y) {
+    return (get_rook_moves(x, y) | get_bishop_moves(x, y));
 }
 
 __uint64_t get_king_moves(int x, int y) {
@@ -213,9 +221,20 @@ __uint64_t get_bishop_moves(int x, int y) {
     return res;
 }
 
+__uint64_t get_knight_moves(int x, int y) {
+    const int X[8] = { 2, 1, -1, -2, -2, -1, 1, 2 };
+    const int Y[8] = { 1, 2, 2, 1, -1, -2, -2, -1 };
+
+    __uint64_t res = 0;
+    for (int i = 0; i < 8; i++) {
+        res |= bit_at_pos(x+X[i], y+Y[i]);
+    }
+
+    return res;
+}
+
 __uint64_t bit_at_pos(int x, int y) {
     if (x < 0 || y < 0 || x > 7 || y > 7) return 0;
-    
     __uint64_t bit = 0b1000000000000000000000000000000000000000000000000000000000000000;
     return bit >> (x + y*8);
 }
