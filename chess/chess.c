@@ -33,11 +33,15 @@ void move_piece(Board*, PIECE, int x1, int y1, int x2, int y2);
 void draw_possible_moves(__uint64_t possible_moves, int tilesize);
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y);
 __uint64_t get_board_bitboard(Board* board);
+__uint64_t get_white_bitboard(Board* board);
+__uint64_t get_black_bitboard(Board* board);
 __uint64_t get_king_moves(int x, int y);
 __uint64_t get_queen_moves(int x, int y);
 __uint64_t get_rook_moves(int x, int y);
 __uint64_t get_bishop_moves(int x, int y);
 __uint64_t get_knight_moves(int x, int y);
+__uint64_t get_black_pawn_moves(int x, int y);
+__uint64_t get_white_pawn_moves(int x, int y);
 __uint64_t bit_at_pos(int x, int y);
 
 
@@ -176,8 +180,11 @@ __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y) {
     else if (piece==WROOK || piece==BROOK) moves = get_rook_moves(x, y);
     else if (piece==WBISHOP || piece==BBISHOP) moves = get_bishop_moves(x, y);
     else if (piece==WKNIGHT || piece==BKNIGHT) moves = get_knight_moves(x, y);
+    else if (piece==WPAWN) moves = get_white_pawn_moves(x, y);
+    else if (piece==BPAWN) moves = get_black_pawn_moves(x, y);
 
-    return moves & ~(get_board_bitboard(board));
+    if (piece <= 5) return moves & ~(get_white_bitboard(board));
+    else return moves & ~(get_black_bitboard(board));
 }
 
 __uint64_t get_queen_moves(int x, int y) {
@@ -233,6 +240,20 @@ __uint64_t get_knight_moves(int x, int y) {
     return res;
 }
 
+__uint64_t get_white_pawn_moves(int x, int y) {
+    __uint64_t res = 0;
+    res |= bit_at_pos(x, y-1);
+    if (y >= 6) res |= bit_at_pos(x, y-2);
+    return res;
+}
+
+__uint64_t get_black_pawn_moves(int x, int y) {
+    __uint64_t res = 0;
+    res |= bit_at_pos(x, y+1);
+    if (y <= 1) res |= bit_at_pos(x, y+2);
+    return res;
+}
+
 __uint64_t bit_at_pos(int x, int y) {
     if (x < 0 || y < 0 || x > 7 || y > 7) return 0;
     __uint64_t bit = 0b1000000000000000000000000000000000000000000000000000000000000000;
@@ -242,6 +263,24 @@ __uint64_t bit_at_pos(int x, int y) {
 __uint64_t get_board_bitboard(Board* board) {
     __uint64_t res = 0;
     for (int i = 0; i < 12; i++) {
+        res |= board->bitboards[i];
+    }
+
+    return res;
+}
+
+__uint64_t get_white_bitboard(Board* board) {
+    __uint64_t res = 0;
+    for (int i = 0; i <= 5; i++) {
+        res |= board->bitboards[i];
+    }
+
+    return res;
+}
+
+__uint64_t get_black_bitboard(Board* board) {
+    __uint64_t res = 0;
+    for (int i = 6; i < 12; i++) {
         res |= board->bitboards[i];
     }
 
