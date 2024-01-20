@@ -35,13 +35,13 @@ __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y);
 __uint64_t get_board_bitboard(Board* board);
 __uint64_t get_white_bitboard(Board* board);
 __uint64_t get_black_bitboard(Board* board);
-__uint64_t get_king_moves(int x, int y);
-__uint64_t get_queen_moves(int x, int y);
-__uint64_t get_rook_moves(int x, int y);
-__uint64_t get_bishop_moves(int x, int y);
-__uint64_t get_knight_moves(int x, int y);
-__uint64_t get_black_pawn_moves(int x, int y);
-__uint64_t get_white_pawn_moves(int x, int y);
+__uint64_t get_king_moves(Board* board, int x, int y);
+__uint64_t get_queen_moves(Board* board, int x, int y);
+__uint64_t get_rook_moves(Board* board, int x, int y);
+__uint64_t get_bishop_moves(Board* board, int x, int y);
+__uint64_t get_knight_moves(Board* board, int x, int y);
+__uint64_t get_black_pawn_moves(Board* board, int x, int y);
+__uint64_t get_white_pawn_moves(Board* board, int x, int y);
 __uint64_t bit_at_pos(int x, int y);
 bool is_possible_move(Board* board, PIECE piece, int x1, int y1, int x2, int y2);
 
@@ -191,23 +191,23 @@ bool is_possible_move(Board* board, PIECE piece, int x1, int y1, int x2, int y2)
 
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y) {
     __uint64_t moves = 0;
-    if (piece==WKING || piece==BKING) moves = get_king_moves(x, y);
-    else if (piece==WQUEEN || piece==BQUEEN) moves = get_queen_moves(x, y);
-    else if (piece==WROOK || piece==BROOK) moves = get_rook_moves(x, y);
-    else if (piece==WBISHOP || piece==BBISHOP) moves = get_bishop_moves(x, y);
-    else if (piece==WKNIGHT || piece==BKNIGHT) moves = get_knight_moves(x, y);
-    else if (piece==WPAWN) moves = get_white_pawn_moves(x, y);
-    else if (piece==BPAWN) moves = get_black_pawn_moves(x, y);
+    if (piece==WKING || piece==BKING) moves = get_king_moves(board, x, y);
+    else if (piece==WQUEEN || piece==BQUEEN) moves = get_queen_moves(board, x, y);
+    else if (piece==WROOK || piece==BROOK) moves = get_rook_moves(board, x, y);
+    else if (piece==WBISHOP || piece==BBISHOP) moves = get_bishop_moves(board, x, y);
+    else if (piece==WKNIGHT || piece==BKNIGHT) moves = get_knight_moves(board, x, y);
+    else if (piece==WPAWN) moves = get_white_pawn_moves(board, x, y);
+    else if (piece==BPAWN) moves = get_black_pawn_moves(board, x, y);
 
     if (piece <= 5) return moves & ~(get_white_bitboard(board));
     else return moves & ~(get_black_bitboard(board));
 }
 
-__uint64_t get_queen_moves(int x, int y) {
-    return (get_rook_moves(x, y) | get_bishop_moves(x, y));
+__uint64_t get_queen_moves(Board* board, int x, int y) {
+    return (get_rook_moves(board, x, y) | get_bishop_moves(board, x, y));
 }
 
-__uint64_t get_king_moves(int x, int y) {
+__uint64_t get_king_moves(Board* board, int x, int y) {
     __uint64_t res = 0;
     for (int j = y-1; j <= y+1; j++) {
         for (int i = x-1; i <= x+1; i++) {
@@ -220,31 +220,77 @@ __uint64_t get_king_moves(int x, int y) {
     return res;
 }
 
-__uint64_t get_rook_moves(int x, int y) {
+__uint64_t get_rook_moves(Board* board, int x, int y) {
+    // TODO cleanup same way as bishop moves
+    __uint64_t full_board = get_board_bitboard(board);
     __uint64_t res = 0;
-    for (int i = 0; i < 8; i++) {
-        res |= bit_at_pos(x, i);
+    for (int i = x+1; i < 8; i++) {
+        __uint64_t move = bit_at_pos(i, y) & (~full_board);
+        if (move != 0) res |= move;
+        else {
+            res |= bit_at_pos(i, y);
+            break;
+        }
     }
 
-    for (int j = 0; j < 8; j++) {
-        res |= bit_at_pos(j, y);
+    for (int i = x-1; i >= 0; i--) {
+        __uint64_t move = bit_at_pos(i, y) & (~full_board);
+        if (move != 0) res |= move;
+        else {
+            res |= bit_at_pos(i, y);
+            break;
+        }
     }
 
-    return res;
+    for (int j = y+1; j < 8; j++) {
+        __uint64_t move = bit_at_pos(x, j) & (~full_board);
+        if (move != 0) {
+            res |= move;
+        } else {
+            res |= bit_at_pos(x, j);
+            break;
+        }
+    }
+
+    for (int j = y-1; j >= 0; j--) {
+        __uint64_t move = bit_at_pos(x, j) & (~full_board);
+        if (move != 0) {
+            res |= move;
+        } else {
+            res |= bit_at_pos(x, j);
+            break;
+        }
+    }
+
+    return res ;
 }
 
-__uint64_t get_bishop_moves(int x, int y) {
+__uint64_t get_bishop_moves(Board* board, int x, int y) {
+    __uint64_t full_board = get_board_bitboard(board);
     __uint64_t res = 0;
+    __uint8_t blocked = 0;
     for (int i = 1; i < 7; i++) {
-        res |= bit_at_pos(x-i, y-i);
-        res |= bit_at_pos(x+i, y-i);
-        res |= bit_at_pos(x-i, y+i);
-        res |= bit_at_pos(x+i, y+i);
+        if (!(0b0001 & blocked)) {
+            res |= bit_at_pos(x-i, y-i);
+            if (!(bit_at_pos(x-i, y-i) & (~full_board))) blocked |= 0b0001;
+        }
+        if (!(0b0010 & blocked)) {
+            res |= bit_at_pos(x+i, y-i);
+            if (!(bit_at_pos(x+i, y-i) & (~full_board))) blocked |= 0b0010;
+        }
+        if (!(0b0100 & blocked)) {
+            res |= bit_at_pos(x-i, y+i);
+            if (!(bit_at_pos(x-i, y+i) & (~full_board))) blocked |= 0b0100;
+        }
+        if (!(0b1000 & blocked)) {
+            res |= bit_at_pos(x+i, y+i);
+            if (!(bit_at_pos(x+i, y+i) & (~full_board))) blocked |= 0b1000;
+        }
     }
     return res;
 }
 
-__uint64_t get_knight_moves(int x, int y) {
+__uint64_t get_knight_moves(Board* board, int x, int y) {
     const int X[8] = { 2, 1, -1, -2, -2, -1, 1, 2 };
     const int Y[8] = { 1, 2, 2, 1, -1, -2, -2, -1 };
 
@@ -256,14 +302,14 @@ __uint64_t get_knight_moves(int x, int y) {
     return res;
 }
 
-__uint64_t get_white_pawn_moves(int x, int y) {
+__uint64_t get_white_pawn_moves(Board* board, int x, int y) {
     __uint64_t res = 0;
     res |= bit_at_pos(x, y-1);
     if (y >= 6) res |= bit_at_pos(x, y-2);
     return res;
 }
 
-__uint64_t get_black_pawn_moves(int x, int y) {
+__uint64_t get_black_pawn_moves(Board* board, int x, int y) {
     __uint64_t res = 0;
     res |= bit_at_pos(x, y+1);
     if (y <= 1) res |= bit_at_pos(x, y+2);
