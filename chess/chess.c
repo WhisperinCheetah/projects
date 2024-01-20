@@ -28,7 +28,7 @@ Board* init_board();
 Texture2D* load_textures(const char** file_paths);
 void draw_pieces(Board* board, Texture2D* textures, size_t tilesize);
 void draw_piece(__uint64_t bitboard, Texture2D* texture, size_t tilesize);
-int piece_at_tile(Board* board, int x, int y);
+int piece_at_tile(bool white_to_play, Board* board, int x, int y);
 void move_piece(Board*, PIECE, int x1, int y1, int x2, int y2);
 void draw_possible_moves(__uint64_t possible_moves, int tilesize);
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y);
@@ -71,22 +71,14 @@ int main() {
     Board* board = init_board();
 
     size_t tilesize = 0;
-    int clicking = -1; // -1 for no click, +0 for bitboard which was clicked
-    int clicking_x = 0;
-    int clicking_y = 0;
+    bool white_to_play = true;
+    int clicked_piece = -1; // -1 for no click, +0 for bitboard which was clicked
+    int clicked_piece_x = 0;
+    int clicked_piece_y = 0;
     while (!WindowShouldClose()) {
         tilesize = compute_tilesize();
-        if ((clicking == -1) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            int boardSize;
-            if (GetScreenWidth() < GetScreenHeight()) boardSize = GetScreenWidth();
-            else boardSize = GetScreenHeight();
-            clicking_x = GetMouseX() / (boardSize / 8);
-            clicking_y = GetMouseY() / (boardSize / 8);
-            
-            clicking = piece_at_tile(board, 7 - clicking_x, 7 - clicking_y);
-        }
-
-        if ((clicking != -1) && IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
+        
+        if ((clicked_piece != -1) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             int boardSize;  
             if (GetScreenWidth() < GetScreenHeight()) boardSize = GetScreenWidth();
             else boardSize = GetScreenHeight();
@@ -94,18 +86,28 @@ int main() {
             int dropped_x = GetMouseX() / (boardSize / 8);
             int dropped_y = GetMouseY() / (boardSize / 8);
 
-            if (is_possible_move(board, clicking, clicking_x, clicking_y, dropped_x, dropped_y)) {
-                move_piece(board, clicking, clicking_x, clicking_y, dropped_x, dropped_y);
+            if (is_possible_move(board, clicked_piece, clicked_piece_x, clicked_piece_y, dropped_x, dropped_y)) {
+                move_piece(board, clicked_piece, clicked_piece_x, clicked_piece_y, dropped_x, dropped_y);
+                white_to_play = !white_to_play;
             }
-            clicking = -1;
+            clicked_piece = -1;
+        } else if ((clicked_piece == -1) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            int boardSize;
+            if (GetScreenWidth() < GetScreenHeight()) boardSize = GetScreenWidth();
+            else boardSize = GetScreenHeight();
+            clicked_piece_x = GetMouseX() / (boardSize / 8);
+            clicked_piece_y = GetMouseY() / (boardSize / 8);
+            
+            clicked_piece = piece_at_tile(white_to_play, board, 7 - clicked_piece_x, 7 - clicked_piece_y);
         }
 
         BeginDrawing();
             ClearBackground(BLACK);
             draw_board(tilesize);
             draw_pieces(board, textures, tilesize);
-            if (clicking != -1) draw_possible_moves(get_possible_moves(board, clicking, clicking_x, clicking_y), tilesize);
+            if (clicked_piece != -1) draw_possible_moves(get_possible_moves(board, clicked_piece, clicked_piece_x, clicked_piece_y), tilesize);
         EndDrawing();
+
     }
 
     for (int i = 0; i < 12; i++) {
@@ -157,10 +159,17 @@ Board* init_board() {
     return board;
 }
 
-int piece_at_tile(Board* board, int x, int y) {
-    for (int i = 0; i < 12; i++) {
-        if (((board->bitboards[i] >> (x + y*8)) & 1) != 0) return i;
+int piece_at_tile(bool white_to_play, Board* board, int x, int y) {
+    if (white_to_play) {
+        for (int i = 0; i < 6; i++) {
+            if (((board->bitboards[i] >> (x + y*8)) & 1) != 0) return i;
+        }
+    } else {
+        for (int i = 6; i < 12; i++) {
+            if (((board->bitboards[i] >> (x + y*8)) & 1) != 0) return i;
+        }
     }
+
 
     return -1;
 }
