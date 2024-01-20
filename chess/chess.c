@@ -303,16 +303,26 @@ __uint64_t get_knight_moves(Board* board, int x, int y) {
 }
 
 __uint64_t get_white_pawn_moves(Board* board, int x, int y) {
+    __uint64_t full_board = get_board_bitboard(board);
     __uint64_t res = 0;
-    res |= bit_at_pos(x, y-1);
-    if (y >= 6) res |= bit_at_pos(x, y-2);
+    res |= bit_at_pos(x, y-1) & (~full_board);
+    if (y >= 6 && res != 0) res |= bit_at_pos(x, y-2) & (~full_board); // res!=0 check to see if pawn is blocked
+    
+    __uint64_t black_board = get_black_bitboard(board);
+    res |= bit_at_pos(x+1, y-1) & (black_board);
+    res |= bit_at_pos(x-1, y-1) & (black_board);
     return res;
 }
 
 __uint64_t get_black_pawn_moves(Board* board, int x, int y) {
+    __uint64_t full_board = get_board_bitboard(board);
     __uint64_t res = 0;
-    res |= bit_at_pos(x, y+1);
-    if (y <= 1) res |= bit_at_pos(x, y+2);
+    res |= bit_at_pos(x, y+1) & (~full_board);
+    if (y <= 1 && res != 0) res |= bit_at_pos(x, y+2) & (~full_board);
+
+    __uint64_t white_board = get_white_bitboard(board);
+    res |= bit_at_pos(x+1, y+1) & (white_board);
+    res |= bit_at_pos(x-1, y+1) & (white_board);
     return res;
 }
 
