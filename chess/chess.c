@@ -77,15 +77,22 @@ int main() {
     while (!WindowShouldClose()) {
         tilesize = compute_tilesize();
         if ((clicking == -1) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            clicking_x = GetMouseX() / (GetScreenWidth() / 8);
-            clicking_y = GetMouseY() / (GetScreenHeight() / 8);
+            int boardSize;
+            if (GetScreenWidth() < GetScreenHeight()) boardSize = GetScreenWidth();
+            else boardSize = GetScreenHeight();
+            clicking_x = GetMouseX() / (boardSize / 8);
+            clicking_y = GetMouseY() / (boardSize / 8);
             
             clicking = piece_at_tile(board, 7 - clicking_x, 7 - clicking_y);
         }
 
         if ((clicking != -1) && IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
-            int dropped_x = GetMouseX() / (GetScreenWidth() / 8);
-            int dropped_y = GetMouseY() / (GetScreenHeight() / 8);
+            int boardSize;  
+            if (GetScreenWidth() < GetScreenHeight()) boardSize = GetScreenWidth();
+            else boardSize = GetScreenHeight();
+
+            int dropped_x = GetMouseX() / (boardSize / 8);
+            int dropped_y = GetMouseY() / (boardSize / 8);
 
             if (is_possible_move(board, clicking, clicking_x, clicking_y, dropped_x, dropped_y)) {
                 move_piece(board, clicking, clicking_x, clicking_y, dropped_x, dropped_y);
@@ -101,12 +108,12 @@ int main() {
         EndDrawing();
     }
 
-    CloseWindow();
-
     for (int i = 0; i < 12; i++) {
         UnloadTexture(textures[i]);
     }
     free(textures);
+    CloseWindow();
+
 
     return 0;
 }
