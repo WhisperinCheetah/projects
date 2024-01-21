@@ -28,7 +28,7 @@ Board* init_board();
 Texture2D* load_textures(const char** file_paths);
 void draw_pieces(Board* board, Texture2D* textures, size_t tilesize);
 void draw_piece(__uint64_t bitboard, Texture2D* texture, size_t tilesize);
-int piece_at_tile(bool white_to_play, Board* board, int x, int y);
+int piece_at_tile(bool white_to_play, Board* board, int x, int y, PIECE piece);
 void move_piece(Board*, PIECE, int x1, int y1, int x2, int y2);
 void draw_possible_moves(__uint64_t possible_moves, int tilesize);
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y);
@@ -72,7 +72,7 @@ int main() {
 
     size_t tilesize = 0;
     bool white_to_play = true;
-    int clicked_piece = -1; // -1 for no click, +0 for bitboard which was clicked
+    int clicked_piece = -1; // -1 for no click, >=0 for bitboard which was clicked
     int clicked_piece_x = 0;
     int clicked_piece_y = 0;
     while (!WindowShouldClose()) {
@@ -98,7 +98,7 @@ int main() {
             clicked_piece_x = GetMouseX() / (boardSize / 8);
             clicked_piece_y = GetMouseY() / (boardSize / 8);
             
-            clicked_piece = piece_at_tile(white_to_play, board, 7 - clicked_piece_x, 7 - clicked_piece_y);
+            clicked_piece = piece_at_tile(white_to_play, board, 7 - clicked_piece_x, 7 - clicked_piece_y, -1);
         }
 
         BeginDrawing();
@@ -159,17 +159,20 @@ Board* init_board() {
     return board;
 }
 
-int piece_at_tile(bool white_to_play, Board* board, int x, int y) {
-    if (white_to_play) {
-        for (int i = 0; i < 6; i++) {
-            if (((board->bitboards[i] >> (x + y*8)) & 1) != 0) return i;
+int piece_at_tile(bool white_to_play, Board* board, int x, int y, PIECE piece) {
+    if (piece == -1) {
+        if (white_to_play) {
+            for (int i = 0; i < 6; i++) {
+                if (((board->bitboards[i] >> (x + y*8)) & 1) != 0) return i;
+            }
+        } else {
+            for (int i = 6; i < 12; i++) {
+                if (((board->bitboards[i] >> (x + y*8)) & 1) != 0) return i;
+            }
         }
     } else {
-        for (int i = 6; i < 12; i++) {
-            if (((board->bitboards[i] >> (x + y*8)) & 1) != 0) return i;
-        }
+        if (((board->bitboards[piece] >> (x + y*8)) & 1) != 0) return piece;
     }
-
 
     return -1;
 }
@@ -200,7 +203,8 @@ bool is_possible_move(Board* board, PIECE piece, int x1, int y1, int x2, int y2)
 
 __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y) {
     __uint64_t moves = 0;
-    if (piece==WKING || piece==BKING) moves = get_king_moves(board, x, y);
+    if (piece==WKING) moves = get_white_king_moves(board, x, y);
+    if (piece==BKING) moves = get_king_moves(board, x, y);
     else if (piece==WQUEEN || piece==BQUEEN) moves = get_queen_moves(board, x, y);
     else if (piece==WROOK || piece==BROOK) moves = get_rook_moves(board, x, y);
     else if (piece==WBISHOP || piece==BBISHOP) moves = get_bishop_moves(board, x, y);
@@ -216,7 +220,7 @@ __uint64_t get_queen_moves(Board* board, int x, int y) {
     return (get_rook_moves(board, x, y) | get_bishop_moves(board, x, y));
 }
 
-__uint64_t get_king_moves(Board* board, int x, int y) {
+__uint64_t get_white_king_moves(Board* board, int x, int y) {
     __uint64_t res = 0;
     for (int j = y-1; j <= y+1; j++) {
         for (int i = x-1; i <= x+1; i++) {
@@ -224,6 +228,10 @@ __uint64_t get_king_moves(Board* board, int x, int y) {
                 res |= bit_at_pos(i, j);
             }
         }
+    }
+
+    if (piece_at_tile(true, board, 7, 7, WROOK)) {
+        res |= bit_at_pos(7, 7); // TODO abstracter + check if there are no pieces in between
     }
 
     return res;
