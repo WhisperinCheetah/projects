@@ -23,30 +23,6 @@ typedef struct _Board {
     __uint64_t bitboards[12];
 } Board;
 
-// void draw_board(int tilesize);
-// int compute_tilesize();
-// Board* init_board();
-// Texture2D* load_textures(const char** file_paths);
-// void draw_pieces(Board* board, Texture2D* textures, size_t tilesize);
-// void draw_piece(__uint64_t bitboard, Texture2D* texture, size_t tilesize);
-// int piece_at_tile(bool white_to_play, Board* board, int x, int y, PIECE piece);
-// void move_piece(Board*, PIECE, int x1, int y1, int x2, int y2);
-// void draw_possible_moves(__uint64_t possible_moves, int tilesize);
-// __uint64_t get_possible_moves(Board* board, PIECE piece, int x, int y);
-// __uint64_t get_board_bitboard(Board* board);
-// __uint64_t get_white_bitboard(Board* board);
-// __uint64_t get_black_bitboard(Board* board);
-// __uint64_t get_white_king_moves(Board* board, int x, int y);
-// __uint64_t get_black_king_moves(Board* board, int x, int y);
-// __uint64_t get_queen_moves(Board* board, int x, int y);
-// __uint64_t get_rook_moves(Board* board, int x, int y);
-// __uint64_t get_bishop_moves(Board* board, int x, int y);
-// __uint64_t get_knight_moves(Board* board, int x, int y);
-// __uint64_t get_black_pawn_moves(Board* board, int x, int y);
-// __uint64_t get_white_pawn_moves(Board* board, int x, int y);
-// __uint64_t bit_at_pos(int x, int y);
-// bool is_possible_move(Board* board, PIECE piece, int x1, int y1, int x2, int y2);
-
 __uint64_t bit_at_pos(int x, int y) {
     if (x < 0 || y < 0 || x > 7 || y > 7) return 0;
     __uint64_t bit = 0b1000000000000000000000000000000000000000000000000000000000000000;
