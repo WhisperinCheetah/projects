@@ -303,6 +303,13 @@ Board* init_board() {
     return board;
 }
 
+void destroy_board(Board** board) {
+    if (*board != NULL) {
+        free(*board);
+        *board = NULL;
+    }
+}
+
 Texture2D* load_textures(const char** file_paths) {
     Texture2D* textures = (Texture2D*)malloc(sizeof(Texture2D) * 12);
     for (int i = 0; i < 12; i++) {
@@ -368,7 +375,7 @@ int main() {
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(60);
-    InitWindow(800, 800, "Hello world test");
+    InitWindow(800, 800, "Chess");
 
     Texture2D* textures = load_textures(image_paths);
     Board* board = init_board();
@@ -418,6 +425,8 @@ int main() {
     }
     free(textures);
     CloseWindow();
+
+    destroy_board(&board);
 
 
     return 0;
