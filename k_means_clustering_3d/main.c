@@ -6,7 +6,7 @@
 #include "raylib.h"
 
 #define AMOUNT_OF_POINTS 5000
-#define AMOUNT_OF_CLUSTERS 6
+// #define AMOUNT_OF_CLUSTERS 6
 #define WINDOW_X 1600
 #define WINDOW_Y 900
 #define RANGE 800
@@ -60,6 +60,7 @@ int main(int argc, char** argv) {
         printf("Cluster count must be greater than 0\n");
         return 0;
     }
+    #define AMOUNT_OF_CLUSTERS cluster_count // fix this fucktard ass solution lazy shit
     char* image_path = argv[2];
 
     char* output_name = NULL;
@@ -73,7 +74,7 @@ int main(int argc, char** argv) {
     ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
 
     int point_count = 0;
-    Point* points = (Point*)malloc(sizeof(Point) * image.width * image.height);
+    Point* points = (Point*)malloc(sizeof(Point) * image.width * image.height); // this loader fucking sucks and is outrageously slow. Fix it.
     for (int y = 0; y < image.height; y++) {
         for (int x = 0; x < image.width; x++) {
             Color color = GetPixelColor(&((Color*)image.data)[x + (y * image.width)], PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
