@@ -6,7 +6,6 @@
 #include "raylib.h"
 
 #define AMOUNT_OF_POINTS 5000
-// #define AMOUNT_OF_CLUSTERS 6
 #define WINDOW_X 1600
 #define WINDOW_Y 900
 #define RANGE 800
@@ -38,7 +37,7 @@ void add_coord_to_point(Point* point, Coordinate coord) {
 }
 
 Vector3 calculate_new_centroid(Cluster* cluster) {
-    float new_x = 0;
+    float new_x = 0; // sketchy, maybe use double?
     float new_y = 0;
     float new_z = 0;
     for (int i = 0; i < cluster->amount; i++) {
