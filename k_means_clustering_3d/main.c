@@ -6,7 +6,6 @@
 #include "raylib.h"
 
 #define AMOUNT_OF_POINTS 5000
-#define AMOUNT_OF_CLUSTERS 6
 #define WINDOW_X 1600
 #define WINDOW_Y 900
 #define RANGE 800
@@ -30,19 +29,130 @@ typedef struct _Cluster {
     Vector3 centroid;
 } Cluster;
 
-double distance_between_points(Vector3, Vector3);
-Cluster* find_nearest_cluster(Point*, Cluster*, int);
-Vector3 calculate_new_centroid(Cluster*);
-Vector3* init_centroids(Point*, int, int);
-Cluster init_empty_cluster(Vector3);
-Cluster* init_empty_clusters(Vector3*, int);
-void add_point_to_cluster(Point*, Cluster*);
-void add_coord_to_point(Point*, Coordinate);
-void draw_points(Point*, int);
-void draw_centroids(Vector3*, int);
-void draw_clusters(Cluster*, int);
-void free_clusters(Cluster* clusters, int k);
-Color vector3_to_color(Vector3 v);
+void add_coord_to_point(Point* point, Coordinate coord) {
+    Coordinate* coord_arr = (Coordinate*)realloc(point->image_coords, sizeof(Coordinate) * (point->amount + 1));
+    coord_arr[point->amount] = coord;
+    point->image_coords = coord_arr;
+    point->amount++;
+}
+
+Vector3 calculate_new_centroid(Cluster* cluster) {
+    float new_x = 0; // sketchy, maybe use double?
+    float new_y = 0;
+    float new_z = 0;
+    for (int i = 0; i < cluster->amount; i++) {
+        new_x += cluster->cluster_points[i]->coord_3d.x;
+        new_y += cluster->cluster_points[i]->coord_3d.y;
+        new_z += cluster->cluster_points[i]->coord_3d.z;
+    }
+
+    new_x /= cluster->amount;
+    new_y /= cluster->amount;
+    new_z /= cluster->amount;
+
+    Vector3 new_centroid = {new_x, new_y, new_z};
+    return new_centroid;
+}
+
+void add_point_to_cluster(Point* point, Cluster* cluster) {
+    if (cluster->size <= cluster->amount) {
+        cluster->size *= 2;
+        cluster->cluster_points = (Point**)realloc(
+            cluster->cluster_points, 
+            cluster->size * sizeof(Point*)
+        );
+    }
+    cluster->cluster_points[cluster->amount] = point;
+    cluster->amount++;
+}
+
+double distance_between_points(Vector3 a, Vector3 b) {
+    return (double)(b.x - a.x)*(b.x - a.x) + (b.y - a.y)*(b.y - a.y) + (b.z - a.z)*(b.z - a.z);
+}
+
+Cluster* find_nearest_cluster(Point* point, Cluster* clusters, int k) {
+    double min_distance = distance_between_points(point->coord_3d, clusters[0].centroid);
+    int min_dist_index = 0;
+
+    for (int i = 1; i < k; i++) {
+        double distance = distance_between_points(point->coord_3d, clusters[i].centroid);
+        if (distance < min_distance) {
+            min_distance = distance;
+            min_dist_index = i;
+        }
+    }
+
+    return &clusters[min_dist_index];
+}
+
+Vector3* init_centroids(Point* points, int amount, int k) {
+    if (amount < k) exit(1);
+
+    int* chosen = LoadRandomSequence(k, 0, amount-1);
+    Vector3* centoids = (Vector3*)malloc(sizeof(Vector3) * k);
+    for (int i = 0; i < k; i++) {
+        centoids[i] = points[chosen[i]].coord_3d;
+    }
+
+    return centoids;
+}
+
+Cluster init_empty_cluster(Vector3 centroid) {
+    Point** points_array = (Point**)malloc(sizeof(Point*) * 100);
+    Cluster cluster = {
+        .amount = 0,
+        .size = 100,
+        .cluster_points = points_array,
+        .centroid = centroid,
+    };
+
+    return cluster;
+}
+
+Cluster* init_empty_clusters(Vector3* centroids, int k) {
+    Cluster* clusters = (Cluster*)malloc(sizeof(Cluster) * k);
+    for (int i = 0; i < k; i++) {
+        clusters[i] = init_empty_cluster(centroids[i]);
+    }
+
+    return clusters;
+}
+
+void free_clusters(Cluster* clusters, int k) {
+    for (int i = 0; i < k; i++) {
+        free(clusters[i].cluster_points);
+    }
+    free(clusters);
+}
+
+void draw_points(Point* points, int amount) { 
+    for (int i = 0; i < amount; i++)
+    {
+        Color color = { (unsigned char)floor(points[i].coord_3d.x), (unsigned char)floor(points[i].coord_3d.y), (unsigned char)floor(points[i].coord_3d.z), 255 };
+        DrawCube(points[i].coord_3d, CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, color);
+    }
+}
+
+void draw_centroids(Vector3* centroids, int k) { 
+    for (int i = 0; i < k; i++)
+    {
+        DrawCube(centroids[i], CUBE_SIZE*2, CUBE_SIZE*2, CUBE_SIZE*2, WHITE);
+    }
+}
+
+Color vector3_to_color(Vector3 v) {
+    Color color = { (unsigned char)floor(v.x), (unsigned char)floor(v.y), (unsigned char)floor(v.z), 255 };
+    return color;
+}
+
+void draw_clusters(Cluster* clusters, int k) { 
+    for (int i = 0; i < k; i++) {
+        Color centroid_color = vector3_to_color(clusters[i].centroid);
+        for (int j = 0; j < clusters[i].amount; j++) {
+            DrawCube(clusters[i].cluster_points[j]->coord_3d, CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, centroid_color);
+        }
+    }   
+}
 
 
 int main(int argc, char** argv) {
@@ -60,6 +170,7 @@ int main(int argc, char** argv) {
         printf("Cluster count must be greater than 0\n");
         return 0;
     }
+    #define AMOUNT_OF_CLUSTERS cluster_count // fix this fucktard ass solution lazy shit
     char* image_path = argv[2];
 
     char* output_name = NULL;
@@ -73,7 +184,7 @@ int main(int argc, char** argv) {
     ImageFormat(&image, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
 
     int point_count = 0;
-    Point* points = (Point*)malloc(sizeof(Point) * image.width * image.height);
+    Point* points = (Point*)malloc(sizeof(Point) * image.width * image.height); // this loader fucking sucks and is outrageously slow. Fix it.
     for (int y = 0; y < image.height; y++) {
         for (int x = 0; x < image.width; x++) {
             Color color = GetPixelColor(&((Color*)image.data)[x + (y * image.width)], PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
@@ -218,129 +329,4 @@ int main(int argc, char** argv) {
     free_clusters(clusters, AMOUNT_OF_CLUSTERS);
 
     return 0;
-}
-
-void add_coord_to_point(Point* point, Coordinate coord) {
-    Coordinate* coord_arr = (Coordinate*)realloc(point->image_coords, sizeof(Coordinate) * (point->amount + 1));
-    coord_arr[point->amount] = coord;
-    point->image_coords = coord_arr;
-    point->amount++;
-}
-
-void free_clusters(Cluster* clusters, int k) {
-    for (int i = 0; i < k; i++) {
-        free(clusters[i].cluster_points);
-    }
-    free(clusters);
-}
-
-Vector3 calculate_new_centroid(Cluster* cluster) {
-    float new_x = 0;
-    float new_y = 0;
-    float new_z = 0;
-    for (int i = 0; i < cluster->amount; i++) {
-        new_x += cluster->cluster_points[i]->coord_3d.x;
-        new_y += cluster->cluster_points[i]->coord_3d.y;
-        new_z += cluster->cluster_points[i]->coord_3d.z;
-    }
-
-    new_x /= cluster->amount;
-    new_y /= cluster->amount;
-    new_z /= cluster->amount;
-
-    Vector3 new_centroid = {new_x, new_y, new_z};
-    return new_centroid;
-}
-
-void add_point_to_cluster(Point* point, Cluster* cluster) {
-    if (cluster->size <= cluster->amount) {
-        cluster->size *= 2;
-        cluster->cluster_points = (Point**)realloc(
-            cluster->cluster_points, 
-            cluster->size * sizeof(Point*)
-        );
-    }
-    cluster->cluster_points[cluster->amount] = point;
-    cluster->amount++;
-}
-
-Cluster* find_nearest_cluster(Point* point, Cluster* clusters, int k) {
-    double min_distance = distance_between_points(point->coord_3d, clusters[0].centroid);
-    int min_dist_index = 0;
-
-    for (int i = 1; i < k; i++) {
-        double distance = distance_between_points(point->coord_3d, clusters[i].centroid);
-        if (distance < min_distance) {
-            min_distance = distance;
-            min_dist_index = i;
-        }
-    }
-
-    return &clusters[min_dist_index];
-}
-
-double distance_between_points(Vector3 a, Vector3 b) {
-    return (double)(b.x - a.x)*(b.x - a.x) + (b.y - a.y)*(b.y - a.y) + (b.z - a.z)*(b.z - a.z);
-}
-
-Vector3* init_centroids(Point* points, int amount, int k) {
-    if (amount < k) exit(1);
-
-    int* chosen = LoadRandomSequence(k, 0, amount-1);
-    Vector3* centoids = (Vector3*)malloc(sizeof(Vector3) * k);
-    for (int i = 0; i < k; i++) {
-        centoids[i] = points[chosen[i]].coord_3d;
-    }
-
-    return centoids;
-}
-
-Cluster* init_empty_clusters(Vector3* centroids, int k) {
-    Cluster* clusters = (Cluster*)malloc(sizeof(Cluster) * k);
-    for (int i = 0; i < k; i++) {
-        clusters[i] = init_empty_cluster(centroids[i]);
-    }
-
-    return clusters;
-}
-
-Cluster init_empty_cluster(Vector3 centroid) {
-    Point** points_array = (Point**)malloc(sizeof(Point*) * 100);
-    Cluster cluster = {
-        .amount = 0,
-        .size = 100,
-        .cluster_points = points_array,
-        .centroid = centroid,
-    };
-
-    return cluster;
-}
-
-void draw_points(Point* points, int amount) { 
-    for (int i = 0; i < amount; i++)
-    {
-        Color color = { (unsigned char)floor(points[i].coord_3d.x), (unsigned char)floor(points[i].coord_3d.y), (unsigned char)floor(points[i].coord_3d.z), 255 };
-        DrawCube(points[i].coord_3d, CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, color);
-    }
-}
-
-void draw_centroids(Vector3* centroids, int k) { 
-    for (int i = 0; i < k; i++)
-    {
-        DrawCube(centroids[i], CUBE_SIZE*2, CUBE_SIZE*2, CUBE_SIZE*2, WHITE);
-    }
-}
-
-void draw_clusters(Cluster* clusters, int k) { 
-    for (int i = 0; i < k; i++) {
-        Color centroid_color = vector3_to_color(clusters[i].centroid);
-        for (int j = 0; j < clusters[i].amount; j++) {
-            DrawCube(clusters[i].cluster_points[j]->coord_3d, CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, centroid_color);
-        }
-    }   
-}
-
-Color vector3_to_color(Vector3 v) {
-    Color color = { (unsigned char)floor(v.x), (unsigned char)floor(v.y), (unsigned char)floor(v.z), 255 };
-    return color;
 }

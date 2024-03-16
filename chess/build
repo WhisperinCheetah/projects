@@ -1,0 +1,7 @@
+#!/bin/bash
+
+gcc -Wall -Wextra -ggdb -I./raylib/ -o chess chess.c -L./raylib/ -lraylib -lm
+if [[ "$1" == "run" ]]
+then
+ ./chess
+fi
